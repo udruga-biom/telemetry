@@ -73,26 +73,29 @@ sptab_final <- rbind(sptab_e1, sptab_e2)
 
 write.csv(sptab_final, file = "data/aquchr_sptab.csv")
 
-gridmaker <- function(spatialobject, resolution = 500) {
-  return(raster(ext = extent(spatialobject), resolution = resolution))
+gridmaker <- function(spatialobject, resolution = 500, extend = 0) {
+  temp <- raster(ext = extent(spatialobject), resolution = resolution)
+  return(extend(temp, extend))
 }
 
 # TAJNA VJERE
 
 e1points <- SpatialPoints(sptab_e1)
-e1grid <- gridmaker(sptab_e1, resolution = 500)
+e1grid <- gridmaker(sptab_e1, resolution = 500, extend = 50)
 e1sp <- as(e1grid, "SpatialPixels")
 
 e2points <- SpatialPoints(sptab_e2)
-e2grid <- gridmaker(sptab_e2, resolution = 100)
+e2grid <- gridmaker(sptab_e2, resolution = 100, extend = 50)
 e2gridsp <- as(e2grid, "SpatialPixels")
+
+##################################
+#     minimum convex polygon     #
+##################################
 
 mcp_e1_95 <- mcp(e1points, percent = 95)
 mcp_e1_90 <- mcp(e1points, percent = 90)
 mcp_e1_80 <- mcp(e1points, percent = 80)
 mcp_e1_50 <- mcp(e1points, percent = 50)
-
-kda_e1 <- kernelUD(e1points, grid = e1gridsp)
 
 # ahull_e1_5 <- ahull(unique.array(coordinates(sptab_e1)), alpha = 5000)
 # ahull_e1_25 <- ahull(unique.array(coordinates(sptab_e1)), alpha = 25000)
@@ -104,14 +107,11 @@ mcp_e2_90 <- mcp(SpatialPoints(sptab_e2), percent = 90)
 mcp_e2_80 <- mcp(SpatialPoints(sptab_e2), percent = 80)
 mcp_e2_50 <- mcp(SpatialPoints(sptab_e2), percent = 50)
 
-kda_e2 <- kernelUD(e2points, grid = e2gridsp)
-
 plot(sptab_e1)
 lines(mcp_e1_95)
 lines(mcp_e1_90)
 lines(mcp_e1_80)
 lines(mcp_e1_50)
-lines(ahull_e1_5)
 
 plot(sptab_e2)
 lines(mcp_e2_95)
@@ -119,6 +119,26 @@ lines(mcp_e2_90)
 lines(mcp_e2_80)
 lines(mcp_e2_50)
 
+###################################
+#     kernel density estimate     #
+###################################
+
+kda_e1 <- kernelUD(e1points, grid = e1gridsp)
+kda_e2 <- kernelUD(e2points, grid = e2gridsp)
+
+plot(sptab_e1, pch = 16, col = rgb(0, 0, 0, 0.3))
+lines(hr_proj)
+lines(getverticeshr(kda_e1, percent = 95), col = rgb(1, 0.3, 0.3))
+lines(getverticeshr(kda_e1, percent = 90), col = rgb(0, 0.5, 0.5))
+lines(getverticeshr(kda_e1, percent = 80), col = rgb(0.2, 0.2, 1))
+lines(getverticeshr(kda_e1, percent = 75))
+
+plot(sptab_e2, pch = 16, col = rgb(0, 0, 0, 0.3))
+lines(hr_proj)
+lines(getverticeshr(kda_e2, percent = 95), col = rgb(1, 0.3, 0.3))
+lines(getverticeshr(kda_e2, percent = 90), col = rgb(0, 0.5, 0.5))
+lines(getverticeshr(kda_e2, percent = 80), col = rgb(0.2, 0.2, 1))
+lines(getverticeshr(kda_e2, percent = 75))
 
 
 
