@@ -17,6 +17,7 @@ library(lubridate)
 library(adehabitatHR)
 library(adehabitatHS)
 library(alphahull)
+library(rgeos)
 
 source('telemetry_f.R')
 
@@ -89,6 +90,9 @@ e2points <- SpatialPoints(sptab_e2)
 e2grid <- gridmaker(sptab_e2, resolution = 100, extend = 50)
 e2gridsp <- as(e2grid, "SpatialPixels")
 
+# unos lokacija gnjezdišta
+nest_e2 <- SpatialPoints(list(longitude = 467457, latitude = 4886454), proj4string = htrs96)
+
 ##################################
 #     minimum convex polygon     #
 ##################################
@@ -128,6 +132,8 @@ lines(mcp_e2_50)
 kda_e1 <- kernelUD(e1points, grid = e1gridsp)
 kda_e2 <- kernelUD(e2points, grid = e2gridsp)
 
+kda_e2ss <- kernelUD(spatfilter(e2points, excl_geom = nest_e2, radius = 400, filter = 'difference'), grid = e2gridsp)
+
 # plotanje kernela
 png(file = 'data/output-aquchr/croe01-kde.png', width = 800, height = 800, pointsize = 10)
 plot(sptab_e1, pch = 16, col = rgb(0, 0, 0, 0.3))
@@ -146,3 +152,8 @@ lines(getverticeshr(kda_e2, percent = 90), col = rgb(0, 0.5, 0.5))
 lines(getverticeshr(kda_e2, percent = 80), col = rgb(0.2, 0.2, 1))
 lines(getverticeshr(kda_e2, percent = 75))
 dev.off()
+
+vert80 <- getverticeshr(kda_e1, percent = 80)
+
+
+
