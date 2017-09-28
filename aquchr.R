@@ -41,41 +41,43 @@ hr_proj <- spTransform(hr, htrs96)
 mj4 <- read_csv(file = "data/data-aquchr/gps_pos_201704.csv")
 mj5 <- read_csv(file = "data/data-aquchr/gps_pos_201705.csv")
 mj6 <- read_csv(file = "data/data-aquchr/gps_pos_201706.csv")
-mj7 <- read_csv(file = "data/data-aquchr/gps_pos_201707.csv")
+mj7 <- read_csv(file = "data/data-aquchr/gps_pos_201709.csv")
 mj8 <- read_csv(file = "data/data-aquchr/gps_pos_201708.csv")
 mj9 <- read_csv(file = "data/data-aquchr/gps_pos_201709.csv")
 
 tab <- bind_rows(mj4, mj5, mj6, mj7, mj8, mj9)
-tab$GpsID <- as.factor(tab$GpsNumber)
-levels(tab$GpsID)[levels(tab$GpsID) == "48505471292"] <- "CROE01"
-levels(tab$GpsID)[levels(tab$GpsID) == "48505476487"] <- "CROE02"
+
+# definiranje definiranje imena GPS-a
+# tab$GpsID <- as.factor(tab$GpsNumber)
+# levels(tab$GpsID)[levels(tab$GpsID) == "48505471292"] <- "CROE01"
+# levels(tab$GpsID)[levels(tab$GpsID) == "48505476487"] <- "CROE02"
 
 # definiranje perioda gniježđenja za svaku jedinku
-period <- tibble(GpsID = c("CROE01", "CROE02"),
+period <- tibble(GpsDescription = c("CROE01", "CROE02"),
                  pocetak = as.POSIXct(c("2017-04-29 06:00:00",
                                         "2017-06-29 06:00:00"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
                  kraj = as.POSIXct(c("2017-07-09 07:00:00",
                                      "2017-10-01 07:00:00"), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
 
-# tab %>% filter(GpsID == "CROG01") # za filtriranje po ptici
+# tab %>% filter(GpsDescription == "CROG01") # za filtriranje po ptici
 
 # odvojene tablice za jedinke
-tab_e1 <- tab %>% filter(GpsID == "CROE01")
-tab_e2 <- tab %>% filter(GpsID == "CROE02")
+tab_e1 <- tab %>% filter(GpsDescription == "CROE01")
+tab_e2 <- tab %>% filter(GpsDescription == "CROE02")
 
 # generiranje prostornih dataframeova mkspat() funkcijom iz telemetry_f.R
 sptab <- mkspat(tab, crs = htrs96)
 
-sptab_e1 <- sptab %>% filter(GpsID == "CROE01")
-sptab_e2 <- sptab %>% filter(GpsID == "CROE02")
+sptab_e1 <- sptab %>% filter(GpsDescription == "CROE01")
+sptab_e2 <- sptab %>% filter(GpsDescription == "CROE02")
 
 # filtriranje po periodu
 sptab_e1 <- sptab_e1 %>% 
-  filter(GPSTime > period[period$GpsID == "CROE01",]$pocetak) %>% 
-  filter(GPSTime < period[period$GpsID == "CROE01",]$kraj)
+  filter(GPSTime > period[period$GpsDescription == "CROE01",]$pocetak) %>% 
+  filter(GPSTime < period[period$GpsDescription == "CROE01",]$kraj)
 sptab_e2 <- sptab_e2 %>% 
-  filter(GPSTime > period[period$GpsID == "CROE02",]$pocetak) %>% 
-  filter(GPSTime < period[period$GpsID == "CROE02",]$kraj)
+  filter(GPSTime > period[period$GpsDescription == "CROE02",]$pocetak) %>% 
+  filter(GPSTime < period[period$GpsDescription == "CROE02",]$kraj)
 
 # output filtriranog rastera na disk
 sptab_final <- rbind(sptab_e1, sptab_e2)
@@ -132,7 +134,7 @@ lines(mcp_e2_50)
 kda_e1 <- kernelUD(e1points, grid = e1gridsp)
 kda_e2 <- kernelUD(e2points, grid = e2gridsp)
 
-kda_e2ss <- kernelUD(spatfilter(e2points, excl_geom = nest_e2, radius = 400, filter = 'difference'), grid = e2gridsp)
+kda_e2 <- kernelUD(spatfilter(e2points, excl_geom = nest_e2, radius = 400, filter = 'difference'), grid = e2gridsp)
 
 # plotanje kernela
 png(file = 'data/output-aquchr/croe01-kde.png', width = 800, height = 800, pointsize = 10)
@@ -152,8 +154,5 @@ lines(getverticeshr(kda_e2, percent = 90), col = rgb(0, 0.5, 0.5))
 lines(getverticeshr(kda_e2, percent = 80), col = rgb(0.2, 0.2, 1))
 lines(getverticeshr(kda_e2, percent = 75))
 dev.off()
-
-vert80 <- getverticeshr(kda_e1, percent = 80)
-
 
 

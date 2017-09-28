@@ -43,3 +43,10 @@ timefilter <- function(input, timelow, timehigh, invert = FALSE) {
   output <- select(output, -GPSTimelow, -GPSTimehigh)
   return(output)
 }
+
+prepend <- function(string, path) {
+  fConn <- file(path, 'r+') 
+  Lines <- readLines(fConn) 
+  writeLines(c(string, Lines), con = fConn) 
+  close(fConn)
+}
