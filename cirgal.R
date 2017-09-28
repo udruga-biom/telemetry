@@ -13,9 +13,11 @@ library(adehabitatHR)
 library(adehabitatHS)
 library(alphahull)
 library(rgeos)
+library(geojson)
 library(geojsonio)
 library(httr)
 
+setwd('~/Documents/Code/telemetry/')
 source('telemetry_f.R')
 
 # priprema administrativnih podloga
