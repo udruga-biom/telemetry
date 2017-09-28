@@ -1,13 +1,7 @@
-# install.packages('tidyverse')
-# install.packages('ggplot2')
-# install.packages('raster')
-# install.packages('trip')
-# install.packages('RNCEP')
-# install.packages('spbabel')
-# install.packages('spdplyr')
-# install.packages('adehabitatHR')
-# install.packages('adehabitatHS')
-# install.packages('alphahull')
+################################################
+# Obrada telemetrijskih podataka za surog orla #
+# Udruga BIOM, 2017                            #
+################################################
 
 library(tidyverse)
 library(raster)
@@ -38,14 +32,14 @@ htrs96 <- crs("+proj=tmerc +lat_0=0 +lon_0=16.5 +k=0.9999 +x_0=500000 +y_0=0 +el
 hr_proj <- spTransform(hr, htrs96)
 
 # input podataka
-mj4 <- read_csv(file = "data/data-aquchr/gps_pos_201704.csv")
-mj5 <- read_csv(file = "data/data-aquchr/gps_pos_201705.csv")
-mj6 <- read_csv(file = "data/data-aquchr/gps_pos_201706.csv")
-mj7 <- read_csv(file = "data/data-aquchr/gps_pos_201709.csv")
-mj8 <- read_csv(file = "data/data-aquchr/gps_pos_201708.csv")
-mj9 <- read_csv(file = "data/data-aquchr/gps_pos_201709.csv")
+mj04 <- get_ecotone_data(2017, 4, "croeagle", auth[1], auth[2])
+mj05 <- get_ecotone_data(2017, 5, "croeagle", auth[1], auth[2])
+mj06 <- get_ecotone_data(2017, 6, "croeagle", auth[1], auth[2])
+mj07 <- get_ecotone_data(2017, 7, "croeagle", auth[1], auth[2])
+mj08 <- get_ecotone_data(2017, 8, "croeagle", auth[1], auth[2])
+mj09 <- get_ecotone_data(2017, 9, "croeagle", auth[1], auth[2])
 
-tab <- bind_rows(mj4, mj5, mj6, mj7, mj8, mj9)
+tab <- bind_rows(mj04, mj05, mj06, mj07, mj08, mj09)
 
 # definiranje definiranje imena GPS-a
 # tab$GpsID <- as.factor(tab$GpsNumber)

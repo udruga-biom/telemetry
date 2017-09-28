@@ -34,10 +34,8 @@ hr_proj <- spTransform(hr, htrs96)
 # mj10 <- read_csv(file = "data/data-aquchr/gps_pos_201710.csv")
 
 # novi input podataka drito s ecotone web-a
-url09 = 'http://telemetry.ecotone.pl/croeagle/exports/positions/gps_pos_201709.csv'
 auth = readLines("data/auth.txt")
-r <- GET(url09, authenticate(auth[1], auth[2], type = "basic"))
-mj09 <- content(r)
+mj09 <- get_ecotone_data(2017, 9, "croeagle", auth[1], auth[2])
 
 tab <- bind_rows(mj09)
 

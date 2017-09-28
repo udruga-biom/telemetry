@@ -1,5 +1,12 @@
 library(raster)
 
+get_ecotone_data <- function(year, month, project, username, password) {
+  url = paste0('http://telemetry.ecotone.pl/', project, '/exports/positions/gps_pos_', year, sprintf("%02d", month), '.csv')
+  auth = readLines("data/auth.txt")
+  r <- GET(url, authenticate(username, password, type = "basic"))
+  return(content(r))
+}
+
 gridmaker <- function(spatialobject, resolution = 500, extend = 0) {
   temp <- raster(ext = extent(spatialobject), resolution = resolution)
   return(extend(temp, extend))
