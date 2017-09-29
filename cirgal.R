@@ -2,7 +2,7 @@
 # Obrada telemetrijskih podataka za objavu (Leaflet, Carto) #
 # Udruga BIOM, 2017                                         #
 #############################################################
-ver = "0.5"
+ver = "0.6"
 
 library(tidyverse)
 library(raster)
@@ -92,24 +92,11 @@ line <- Lines(list(Line(coordinates(output))), ID = "CROE01")
 spline <- SpatialLines(list(line), proj4string = wgs84)
 
 # geojson output
-pointfile <- "/home/mzec/biom-cloud-it/telemetrija/points.js"
-linefile <- "/home/mzec/biom-cloud-it/telemetrija/line.js"
+pointfile <- "/home/mzec/biom-cloud-it/telemetrija/points.json"
+linefile <- "/home/mzec/biom-cloud-it/telemetrija/line.json"
 
 output_gj <- as.geojson(output)
 output_line_gj <- as.geojson(spline)
 geo_write(output_gj, pointfile)
 geo_write(output_line_gj, linefile)
-
-prepend(string = "var points=", path = pointfile)
-prepend(string = "var line=", path = linefile)
-
-
-
-
-
-
-
-
-
-
 
