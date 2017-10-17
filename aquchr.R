@@ -12,6 +12,7 @@ library(adehabitatHR)
 library(adehabitatHS)
 library(alphahull)
 library(rgeos)
+library(httr)
 
 source('telemetry_f.R')
 
@@ -32,6 +33,8 @@ htrs96 <- crs("+proj=tmerc +lat_0=0 +lon_0=16.5 +k=0.9999 +x_0=500000 +y_0=0 +el
 hr_proj <- spTransform(hr, htrs96)
 
 # input podataka
+auth <- readLines("data/auth.txt")
+
 mj04 <- get_ecotone_data(2017, 4, "croeagle", auth[1], auth[2])
 mj05 <- get_ecotone_data(2017, 5, "croeagle", auth[1], auth[2])
 mj06 <- get_ecotone_data(2017, 6, "croeagle", auth[1], auth[2])

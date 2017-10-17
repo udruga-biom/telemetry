@@ -38,8 +38,9 @@ hr_proj <- spTransform(hr, htrs96)
 # novi input podataka drito s ecotone web-a
 auth = readLines("data/auth.txt")
 mj09 <- get_ecotone_data(2017, 9, "croeagle", auth[1], auth[2])
+mj10 <- get_ecotone_data(2017, 10, "croeagle", auth[1], auth[2])
 
-tab <- bind_rows(mj09)
+tab <- bind_rows(mj09, mj10)
 
 # dodavanje stringa za datum
 

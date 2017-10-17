@@ -22,17 +22,11 @@ mkspat <- function(tab, crs = NA) {
 }
 
 # prostorni filter, za isključivanje gnjezdišta itd.
-spatfilter <- function(input, excl_geom, radius = 0, filter = 'intersect') {
+spatfilter <- function(input, excl_geom, radius = 0) {
     if(radius > 0) {
       excl_geom <- gBuffer(excl_geom, width = radius)
     }
-    izvan <- input[is.na(over(input, excl_geom)),]
-    unutar <- input[!is.na(over(input, excl_geom)),]
-    if(filter == 'intersect') {
-      return(unutar)
-    } else if (filter == 'difference') {
-      return(izvan)
-    }
+    return(!is.na(over(input, excl_geom)))
 }
 
 # filter po vremenu unutar dana, timelow i timehigh su klase 'character' u UTC vremenskoj zoni
