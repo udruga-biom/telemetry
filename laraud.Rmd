@@ -109,7 +109,7 @@ Dodan je logički vektor `sptab$AtColony` koji govori je li pojedina GPS točka 
 # dodavanje logičkog vektora za prisutnost na koloniji
 sptab$AtColony <- spatfilter(input = sptab, excl_geom = nest, radius = opt_radius)
 {
-  plot.c(drzave, radius = 1)
+  plot.c(drzave, radius = 1, col = "grey")
   plot(gBuffer(nest, width = opt_radius), add = TRUE)
   plot(sptab[sptab$AtColony,], add = TRUE)
   plot(sptab[!sptab$AtColony,], add = TRUE, col = rgb(1, 0, 0))
@@ -154,7 +154,7 @@ sptab_g <- sptab %>%
 
 ### Prepoznavanje izlazaka s kolonije
 
-Izlasci s kolonije, ili "foraging trips", su definirani kao skup _uzastopnih_ GPS lokacija koje imaju preko neke minimalne vrijednosti zračne udaljenosti (`opt_radius`: `r opt_radius`) od gnijezda (varijabla `nest`, koordinate: `r format(coordinates(nest)[1], scientific = FALSE)`, `r format(coordinates(nest)[2], scientific = FALSE)`). Funkcija `foragingtrips()` pronalazi takve uzastopne GPS točke i numerira ih prema izlasku u stupac `TripID`.
+Izlasci s kolonije, ili "foraging trips", su definirani kao skup _uzastopnih_ GPS lokacija koje imaju preko neke minimalne vrijednosti zračne udaljenosti (`opt_radius`: `r opt_radius`) od gnijezda (varijabla `nest`). Funkcija `foragingtrips()` pronalazi takve uzastopne GPS točke i numerira ih prema izlasku u stupac `TripID`.
 
 ```{r fja_foragingtrips}
 # funkcija za numeriranje odlazaka s kolonije
@@ -191,17 +191,59 @@ sptab_g %>%
   head(., 25)
 ```
 
-### Pretvaranje u kretnice
+### Izračun udaljenosti i brzine
 
-Korišteni paketi: `adehabitatLT` i `trip`.
-
-```{r trips_trajectories}
+```{r movestats}
 # numeriranje odlazaka s kolonije
 g1 <- foragingtrips(filter(sptab_g, GpsID == "CROG01"), minpoints = opt_minp)
 g2 <- foragingtrips(filter(sptab_g, GpsID == "CROG02"), minpoints = opt_minp)
 g3 <- foragingtrips(filter(sptab_g, GpsID == "CROG03"), minpoints = opt_minp)
 g4 <- foragingtrips(filter(sptab_g, GpsID == "CROG04"), minpoints = opt_minp)
 g5 <- foragingtrips(filter(sptab_g, GpsID == "CROG05"), minpoints = opt_minp)
+
+# funkcija za izračun zračne udaljenosti između susjednih GPS točaka:
+distance_p2p <- function(sptable) {
+  output <- rep(0, nrow(sptable))
+  for (i in 2:nrow(sptable)) {
+    dx <- coordinates(sptable)[i,1] - coordinates(sptable)[i-1,1]
+    dy <- coordinates(sptable)[i,2] - coordinates(sptable)[i-1,2]
+    output[i] <- sqrt(dx^2 + dy^2)
+  }
+  return(output)
+}
+
+# funkcija za izračun vremenske razlike između susjednih GPS točaka:
+time_p2p <- function(sptable, units = "secs") {
+  td <- difftime(sptable$GPSTime[2:nrow(sptable)], sptable$GPSTime[1:nrow(sptable)-1], units = units)
+  td <- c(0, td)
+  return(td)
+}
+
+# funkcija koja to kombinira i dodaje tablici koju dobije kao input:
+movestats <- function(sptable) {
+  sptable$Distance <- distance_p2p(sptable)
+  sptable$Timediff <- time_p2p(sptable, units = "secs")
+  sptable$Speed <- sptable$Distance / sptable$Timediff
+  return(sptable)
+}
+
+g1 <- movestats(g1)
+g2 <- movestats(g2)
+g3 <- movestats(g3)
+g4 <- movestats(g4)
+g5 <- movestats(g5)
+
+# primjeri dobivenih rezultata:
+plot(g1$Speed)
+plot(g2$Speed)
+```
+
+### Pretvaranje u kretnice
+
+Korišteni paketi: `adehabitatLT` i `trip`.
+
+```{r trips_trajectories}
+
 
 # generiranje trip objekata za sve track-ove
 g1_trip <- trip(g1, TORnames = c("GPSTime", "TripID"))
@@ -240,4 +282,5 @@ g5_traj <- as.ltraj(xy = coordinates(g5), date = g5$GPSTime, id = g5$TripID)
 
 g1_trip
 ```
+
 

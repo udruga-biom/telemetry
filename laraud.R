@@ -143,6 +143,40 @@ g3_traj <- as.ltraj(xy = coordinates(g3), date = g3$GPSTime, id = g3$TripID)
 g4_traj <- as.ltraj(xy = coordinates(g4), date = g4$GPSTime, id = g4$TripID)
 g5_traj <- as.ltraj(xy = coordinates(g5), date = g5$GPSTime, id = g5$TripID)
 
+# brzina, udaljenost ------------------------------------------------------
+
+# funkcija za izračun zračne udaljenosti između susjednih GPS točaka:
+distance_p2p <- function(sptable) {
+  output <- rep(0, nrow(sptable))
+  for (i in 2:nrow(sptable)) {
+    dx <- coordinates(sptable)[i,1] - coordinates(sptable)[i-1,1]
+    dy <- coordinates(sptable)[i,2] - coordinates(sptable)[i-1,2]
+    output[i] <- sqrt(dx^2 + dy^2)
+  }
+  return(output)
+}
+
+# funkcija za izračun vremenske razlike između susjednih GPS točaka:
+time_p2p <- function(sptable, units = "secs") {
+  td <- difftime(sptable$GPSTime[2:nrow(sptable)], sptable$GPSTime[1:nrow(sptable)-1], units = units)
+  td <- c(0, td)
+  return(td)
+}
+
+# funkcija koja to kombinira i dodaje tablici koju dobije kao input:
+movestats <- function(sptable) {
+  sptable$Distance <- distance_p2p(sptable)
+  sptable$Timediff <- time_p2p(sptable, units = "secs")
+  sptable$Speed <- sptable$Distance / sptable$Timediff
+  return(sptable)
+}
+
+g1 <- movestats(g1)
+g2 <- movestats(g2)
+g3 <- movestats(g3)
+g4 <- movestats(g4)
+g5 <- movestats(g5)
+
 # kernel density estimates ------------------------------------------------
 
 g2points <- SpatialPoints(sptab_g2)
