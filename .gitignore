@@ -1,6 +1,13 @@
 # Input data
 data/
 
+# Output data
+output/
+
+# Knit data
+*.pdf
+*.html
+
 # History files
 .Rhistory
 .Rapp.history
@@ -31,7 +38,12 @@ vignettes/*.pdf
 /*_cache/
 /cache/
 
+# rpubs
+rsconnect/
+
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
 .Rproj.user
+
+*.md.swp

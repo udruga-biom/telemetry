@@ -51,3 +51,15 @@ prepend <- function(string, path) {
   writeLines(c(string, Lines), con = fConn) 
   close(fConn)
 }
+
+# dodatak za plot funkciju koji automatski zadaje područje istraživanja
+plot.p <- function(...){
+  plot(..., xlim = xlims, ylim = ylims)
+}
+
+# dodatak za plot funkciju koji automatski zadaje okolicu kolonije
+plot.c <- function(..., radius = 10){
+  plot(..., 
+       xlim = c(xmin(nest) - radius * 1000, xmax(nest) + radius * 1000),
+       ylim = c(ymin(nest) - radius * 1000, ymax(nest) + radius * 1000))
+}
