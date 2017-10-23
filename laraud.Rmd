@@ -40,6 +40,10 @@ htrs96 <- crs("+proj=tmerc +lat_0=0 +lon_0=16.5 +k=0.9999 \
               +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
 # definiranje mjesta gniježđenja (središte kolonije)
 nest <- SpatialPoints(list(longitude = 549608, latitude = 4735945), proj4string = htrs96)
+
+# definiranje spola
+sextab <- data.frame(GpsID = c("CROG01", "CROG02", "CROG03", "CROG04", "CROG05"), 
+                     Sex = as.factor(c("Female", "Female", "Male", "Male", "Female")))
 ```
 
 
@@ -50,12 +54,12 @@ nest <- SpatialPoints(list(longitude = 549608, latitude = 4735945), proj4string 
 ```{r input_podloge}
 # dohvaćanje podloga
 # funkcija raster::getData() dohvaća s GADM online baze državne granice:
-hr <- getData(name = "GADM", country = 'HRV', level = 0, path = 'data/')
-it <- getData(name = "GADM", country = 'ITA', level = 0, path = 'data/')
-al <- getData(name = "GADM", country = 'ALB', level = 0, path = 'data/')
-mn <- getData(name = "GADM", country = 'BIH', level = 0, path = 'data/')
-bh <- getData(name = "GADM", country = 'MNE', level = 0, path = 'data/')
-sl <- getData(name = "GADM", country = 'SVN', level = 0, path = 'data/')
+hr <- getData(name = "GADM", country = "HRV", level = 0, path = 'data/')
+it <- getData(name = "GADM", country = "ITA", level = 0, path = 'data/')
+al <- getData(name = "GADM", country = "ALB", level = 0, path = 'data/')
+mn <- getData(name = "GADM", country = "BIH", level = 0, path = 'data/')
+bh <- getData(name = "GADM", country = "MNE", level = 0, path = 'data/')
+sl <- getData(name = "GADM", country = "SVN", level = 0, path = 'data/')
 
 # spajanje pojedinačnih država u jedan sloj
 drzave <- rbind(hr, it, al, mn, bh, sl) %>% spTransform(CRSobj = htrs96)
@@ -93,8 +97,11 @@ mj08 <- get_ecotone_data(2017, 8, "crogull", auth[1], auth[2])
 tab <- bind_rows(mj05, mj06, mj07, mj08)
 tab$GpsID <- as.factor(tab$GpsDescription)
 
-# mkspat() funkcija od obične tablice radi prostornu tablicu, tj. spatialpoints dataframe:
-sptab <- mkspat(tab, crs = htrs96)
+# mkspat() funkcija od obične tablice radi prostornu tablicu, tj. spatialpoints dataframe
+# movestats() fja dodaje point-to-point udaljenosti, vremensku razliku i brzinu
+sptab <- mkspat(tab, crs = htrs96) %>% 
+  movestats() %>% 
+  left_join(sextab, by = "GpsID") # dodaje spol, prethodno zadan u sextab varijabli
 plot(mkspat(tab, crs = wgs84), col = sptab$GpsID, pch = "o")
 plot(svijet, add = TRUE)
 ```
@@ -191,9 +198,7 @@ sptab_g %>%
   head(., 25)
 ```
 
-### Izračun udaljenosti i brzine
-
-```{r movestats}
+```{r trip_trajectory}
 # numeriranje odlazaka s kolonije
 g1 <- foragingtrips(filter(sptab_g, GpsID == "CROG01"), minpoints = opt_minp)
 g2 <- foragingtrips(filter(sptab_g, GpsID == "CROG02"), minpoints = opt_minp)
@@ -201,41 +206,85 @@ g3 <- foragingtrips(filter(sptab_g, GpsID == "CROG03"), minpoints = opt_minp)
 g4 <- foragingtrips(filter(sptab_g, GpsID == "CROG04"), minpoints = opt_minp)
 g5 <- foragingtrips(filter(sptab_g, GpsID == "CROG05"), minpoints = opt_minp)
 
-# funkcija za izračun zračne udaljenosti između susjednih GPS točaka:
-distance_p2p <- function(sptable) {
-  output <- rep(0, nrow(sptable))
-  for (i in 2:nrow(sptable)) {
-    dx <- coordinates(sptable)[i,1] - coordinates(sptable)[i-1,1]
-    dy <- coordinates(sptable)[i,2] - coordinates(sptable)[i-1,2]
-    output[i] <- sqrt(dx^2 + dy^2)
-  }
-  return(output)
-}
+# generiranje trip objekata za sve track-ove
+g1_trip <- trip(g1, TORnames = c("GPSTime", "TripID"))
+g2_trip <- trip(g2, TORnames = c("GPSTime", "TripID"))
+g3_trip <- trip(g3, TORnames = c("GPSTime", "TripID"))
+g4_trip <- trip(g4, TORnames = c("GPSTime", "TripID"))
+g5_trip <- trip(g5, TORnames = c("GPSTime", "TripID"))
 
-# funkcija za izračun vremenske razlike između susjednih GPS točaka:
-time_p2p <- function(sptable, units = "secs") {
-  td <- difftime(sptable$GPSTime[2:nrow(sptable)], sptable$GPSTime[1:nrow(sptable)-1], units = units)
-  td <- c(0, td)
-  return(td)
-}
+# kreiranje "trajectory" objekta
+g1_traj <- as.ltraj(xy = coordinates(g1), date = g1$GPSTime, id = g1$TripID)
+g2_traj <- as.ltraj(xy = coordinates(g2), date = g2$GPSTime, id = g2$TripID)
+g3_traj <- as.ltraj(xy = coordinates(g3), date = g3$GPSTime, id = g3$TripID)
+g4_traj <- as.ltraj(xy = coordinates(g4), date = g4$GPSTime, id = g4$TripID)
+g5_traj <- as.ltraj(xy = coordinates(g5), date = g5$GPSTime, id = g5$TripID)
+```
 
-# funkcija koja to kombinira i dodaje tablici koju dobije kao input:
-movestats <- function(sptable) {
-  sptable$Distance <- distance_p2p(sptable)
-  sptable$Timediff <- time_p2p(sptable, units = "secs")
-  sptable$Speed <- sptable$Distance / sptable$Timediff
-  return(sptable)
-}
+### Opis kretanja
 
-g1 <- movestats(g1)
-g2 <- movestats(g2)
-g3 <- movestats(g3)
-g4 <- movestats(g4)
-g5 <- movestats(g5)
+Podaci su grupirani prema pticama i izlascima s kolonije (_foraging trips_, u daljnjem tekstu "izlasci") te su izračunati sljedeći podaci:
 
-# primjeri dobivenih rezultata:
-plot(g1$Speed)
-plot(g2$Speed)
+ - `pocetak` - vrijeme odlaska s kolonije.
+ - `kraj` - vrijeme povratka na koloniju.
+ - `pocetak_mj` - mjesec u kojem je jedinka otišla s kolonije, kao nominalna varijabla.
+ - `kraj_mj` - mjesec u kojem se jedinka vratila na koloniju, kao nominalna varijabla.
+ - `l_p2p_total` - ukupna prijeđena udaljenost tijekom izlaska $[km]$.
+ - `l_nest_mean` - srednja zračna udaljenost od gnijezda tijekom izlaska $[km]$.
+ - `l_nest_max` - najveća zračna udaljenost od gnijezda tijekom izlaska $[km]$.
+ - `nest_max_x`, `nest_max_y` - x i y koordinate najudaljenije točke od gnijezda tijekom izlaska.
+ - `srednja_brzina` - srednja brzina kretanja tijekom izlaska $[m/s]$.
+
+Cijela tablica je snimljena u `laraud_trips.csv`.
+
+```{r brzina_udaljenost}
+# ponovno spaja podatke za pojedine galebove u jednu tablicu
+g <- rbind(g1, g2, g3, g4, g5)
+
+gt <- g %>% 
+  as.tibble() %>% 
+  group_by(GpsID, TripID) %>% 
+  summarise(pocetak = min(GPSTime), 
+            kraj = max(GPSTime), 
+            pocetak_mj = month(min(GPSTime), label = TRUE), 
+            kraj_mj = month(max(GPSTime), label = TRUE),
+            l_p2p_total = sum(Distance) / 1000, 
+            l_nest_mean = mean(Dist_from_nest) / 1000,
+            l_nest_max = max(Dist_from_nest) / 1000,
+            nest_max_x = LonProj[[which.max(Dist_from_nest)]],
+            nest_max_y = LatProj[[which.max(Dist_from_nest)]],
+            # trajanje = sum(Timediff) / 3600, # stara metoda za izračun
+            srednja_brzina = mean(Speed, na.rm = TRUE)) %>% 
+  mutate(trajanje = difftime(kraj, pocetak, units = 'hours')) %>% 
+  left_join(sextab, by = "GpsID")
+```
+
+Isti podaci su izračunati i skupno po jedinci i prikazani u donjoj tablici, iz koje je vidljivo:
+
+ a) Po varijabli `l_nest_mean` vidi se da postoji jasna razlika između ponašanja jedinki `CROG02` i `CROG04` te svih ostalih s obzirom na zadržavanje u blizini kolonije.
+ b) Po varijabli `l_p2p_total` vidi se da ne postoji velika razlika između ukupne udaljenosti koju su prešle ptice koje su se tijekom vremena istraživanja zadržavale u blizini kolonije (`CROG02`, `CROG04`) i ostalih ptica.
+
+```{r brzina_udaljenost_jedinka}
+gi <- g %>% 
+  as.tibble() %>% 
+  group_by(GpsID) %>% 
+  summarise(pocetak = min(GPSTime), 
+            kraj = max(GPSTime), 
+            pocetak_mj = month(min(GPSTime), label = TRUE), 
+            kraj_mj = month(max(GPSTime), label = TRUE),
+            l_p2p_total = sum(Distance) / 1000, 
+            l_nest_mean = mean(Dist_from_nest) / 1000,
+            l_nest_max = max(Dist_from_nest) / 1000,
+            nest_max_x = LonProj[[which.max(Dist_from_nest)]],
+            nest_max_y = LatProj[[which.max(Dist_from_nest)]],
+            # trajanje = sum(Timediff) / 3600, # stara metoda za izračun
+            srednja_brzina = mean(Speed, na.rm = TRUE)) %>% 
+  mutate(trajanje = difftime(kraj, pocetak, units = 'hours')) %>% 
+  left_join(sextab, by = "GpsID")
+
+gi %>% 
+  dplyr::select(-pocetak_mj, -kraj_mj, -nest_max_x, -nest_max_y, -Sex) %>% 
+  knitr::kable()
 ```
 
 ### Pretvaranje u kretnice
@@ -279,8 +328,29 @@ g5_traj <- as.ltraj(xy = coordinates(g5), date = g5$GPSTime, id = g5$TripID)
   lines(drzave)
   lines(g5_trip)
 }  
-
-g1_trip
 ```
 
+### Opis kretanja prema jedinki i spolu
+
+Korišten paket `ggplot2`.
+
+```{r}
+p <- ggplot(gt) + 
+  labs(x = "Jedinka")
+  
+p + geom_boxplot(aes(GpsID, l_p2p_total)) + labs(y = "Ukupna duljina puta tijekom izlaska [m]")
+p + geom_boxplot(aes(GpsID, srednja_brzina)) + labs(y = "Srednja brzina tijekom izlaska [m/s]")
+p + geom_boxplot(aes(GpsID, l_nest_mean)) + labs(y = "Srednja zračna udaljenost od gn. tijekom izlaska [m]")
+p + geom_boxplot(aes(GpsID, l_nest_max)) + labs(y = "Maksimalna zračna udaljenost od gn. tijekom izlaska [m]")
+p + geom_boxplot(aes(GpsID, as.numeric(trajanje))) + labs(y = "Ukupno trajanje izlaska [h]")
+
+p <- ggplot(gt) +
+  labs(x = "Spol")
+
+p + geom_boxplot(aes(Sex, l_p2p_total)) + labs(y = "Ukupna duljina puta tijekom izlaska [m]")
+p + geom_boxplot(aes(Sex, srednja_brzina)) + labs(y = "Srednja brzina tijekom izlaska [m/s]")
+p + geom_boxplot(aes(Sex, l_nest_mean)) + labs(y = "Srednja zračna udaljenost od gn. tijekom izlaska [m]")
+p + geom_boxplot(aes(Sex, l_nest_max)) + labs(y = "Maksimalna zračna udaljenost od gn. tijekom izlaska [m]")
+p + geom_boxplot(aes(Sex, as.numeric(trajanje))) + labs(y = "Ukupno trajanje izlaska [h]")
+```
 

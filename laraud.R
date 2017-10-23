@@ -1,10 +1,10 @@
 #
 # Analiza telemetrijskih podataka - Larus audouinii
 # GPS logger: Ecotone SAKER L
-# mzec 2017
+# mzec 2017-10
 #
 
-verzija <- "0.5"
+verzija <- "0.7"
 
 # setup -------------------------------------------------------------------
 
@@ -26,7 +26,7 @@ source(file = 'data/laraud_extent.R')
 # postavke ----------------------------------------------------------------
 
 # minimalni broj lokacija, foragingtrips() funkcija će filtrirati kraće tripove:
-opt_minp <- 10
+opt_minp <- 3
 # radijus oko gnijezda za definiranje "kolonije" (u metrima):
 opt_radius <- 500
 # definiranje CRS-ova
@@ -35,6 +35,66 @@ htrs96 <- crs("+proj=tmerc +lat_0=0 +lon_0=16.5 +k=0.9999 \
               +x_0=500000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
 # definiranje mjesta gniježđenja (središte kolonije)
 nest <- SpatialPoints(list(longitude = 549608, latitude = 4735945), proj4string = htrs96)
+
+# pomoćne funkcije --------------------------------------------------------
+
+# funkcija za numeriranje odlazaka s kolonije
+# ulaz: dataframe sa $AtColony stupcem (i.e. output spatfilter() funkcije)
+foragingtrips <- function(sp_table, minpoints = 3){
+  sp_table <- sp_table %>% 
+    mutate(TripID = 1 + c(0, cumsum(abs(diff(sp_table$AtColony))))) %>% 
+    filter(!AtColony) %>% 
+    mutate(TripID = as.numeric(as.factor(TripID)))
+  
+  trippoints <- sp_table %>% 
+    as.tibble() %>% 
+    group_by(TripID) %>% 
+    summarise(TripPoints = n())
+  
+  sp_table <- sp_table %>% 
+    left_join(trippoints, by = "TripID") %>% 
+    filter(TripPoints >= minpoints)
+  # izlaz: dataframe sa TripID i TripPoints stupcima
+  # TripID: redni broj za "foraging trip"
+  # TripPoints: ukupni broj GPS lokacija za taj foraging trip (za potrebe filtriranja)
+  return(sp_table)
+}
+
+# funkcija za izračun zračne udaljenosti između susjednih GPS točaka:
+distance_p2p <- function(sptable) {
+  output <- rep(0, nrow(sptable))
+  for (i in 2:nrow(sptable)) {
+    dx <- coordinates(sptable)[i,1] - coordinates(sptable)[i-1,1]
+    dy <- coordinates(sptable)[i,2] - coordinates(sptable)[i-1,2]
+    output[i] <- sqrt(dx^2 + dy^2)
+  }
+  return(output)
+}
+
+# funkcija za izračun vremenske razlike između susjednih GPS točaka:
+time_p2p <- function(sptable, units = "secs") {
+  td <- difftime(sptable$GPSTime[2:nrow(sptable)], sptable$GPSTime[1:nrow(sptable)-1], units = units)
+  td <- c(0, td)
+  return(td)
+}
+
+# funkcija koja to kombinira i dodaje tablici koju dobije kao input:
+movestats <- function(sptable) {
+  sptable$Distance <- distance_p2p(sptable)
+  dx_nest <- coordinates(sptable)[,1] - coordinates(nest)[1]
+  dy_nest <- coordinates(sptable)[,2] - coordinates(nest)[2]
+  sptable$Dist_from_nest <- sqrt(dx_nest^2 + dy_nest^2)
+  sptable$Timediff <- time_p2p(sptable, units = "secs")
+  sptable$Speed <- sptable$Distance / sptable$Timediff
+  for (i in 2:nrow(sptable)) {
+    if (sptable$GpsID[i] != sptable$GpsID[i-1]) {
+      sptable$Distance[i] <- 0
+      sptable$Timediff[i] <- 0
+      sptable$Speed[i] <- NA
+    }
+  }
+  return(sptable)
+}
 
 # priprema podataka -------------------------------------------------------
 
@@ -63,8 +123,16 @@ mj08 <- get_ecotone_data(2017, 8, "crogull", auth[1], auth[2])
 tab <- bind_rows(mj05, mj06, mj07, mj08)
 tab$GpsID <- as.factor(tab$GpsDescription)
 
-# mkspat() funkcija od obične tablice radi prostornu tablicu, tj. spatialpoints dataframe:
-sptab <- mkspat(tab, crs = htrs96)
+# definiranje spola
+sextab <- data.frame(GpsID = c("CROG01", "CROG02", "CROG03", "CROG04", "CROG05"), 
+                     Sex = as.factor(c("Female", "Female", "Male", "Male", "Female")))
+
+
+# mkspat() fja od obične tablice radi prostornu tablicu, tj. spatialpoints dataframe
+# movestats() fja dodaje point-to-point udaljenosti, vremensku razliku i brzinu
+sptab <- mkspat(tab, crs = htrs96) %>% 
+  movestats() %>% 
+  left_join(sextab, by = "GpsID")
 
 # dodavanje logičkog vektora za prisutnost na koloniji
 sptab$AtColony <- spatfilter(input = sptab, excl_geom = nest, radius = opt_radius)
@@ -72,6 +140,8 @@ sptab$AtColony <- spatfilter(input = sptab, excl_geom = nest, radius = opt_radiu
 plot.c(drzave, radius = 1)
 plot(sptab_g[sptab_g$AtColony,], add = TRUE)
 plot(sptab_g[!sptab_g$AtColony,], add = TRUE, col = rgb(1, 0, 0))
+
+movestats(sptab)
 
 # definiranje perioda gniježđenja za svaku jedinku
 period <- tibble(GpsID = as.factor(c("CROG01", "CROG02", "CROG03", "CROG04", "CROG05")),
@@ -95,32 +165,10 @@ period <- tibble(GpsID = as.factor(c("CROG01", "CROG02", "CROG03", "CROG04", "CR
 
 # filtriranje prema periodu gniježđenja
 sptab_g <- sptab %>%
-  left_join(period, by = "GpsID") %>% 
+  left_join(period, by = "GpsID") %>%
   filter(GPSTime > pocetak & GPSTime < kraj)
 
 # kategoriziranje odlazaka s kolonije -------------------------------------
-
-# funkcija za numeriranje odlazaka s kolonije
-# ulaz: dataframe sa $AtColony stupcem (i.e. output spatfilter() funkcije)
-foragingtrips <- function(sp_table, minpoints = 3){
-  sp_table <- sp_table %>% 
-    mutate(TripID = 1 + c(0, cumsum(abs(diff(sp_table$AtColony))))) %>% 
-    filter(!AtColony) %>% 
-    mutate(TripID = as.numeric(as.factor(TripID)))
-  
-  trippoints <- sp_table %>% 
-    as.tibble() %>% 
-    group_by(TripID) %>% 
-    summarise(TripPoints = n())
-  
-  sp_table <- sp_table %>% 
-    left_join(trippoints, by = "TripID") %>% 
-    filter(TripPoints >= minpoints)
-  # izlaz: dataframe sa TripID i TripPoints stupcima
-  # TripID: redni broj za "foraging trip"
-  # TripPoints: ukupni broj GPS lokacija za taj foraging trip (za potrebe filtriranja)
-  return(sp_table)
-}
 
 # numeriranje odlazaka s kolonije
 g1 <- foragingtrips(filter(sptab_g, GpsID == "CROG01"), minpoints = opt_minp)
@@ -145,43 +193,53 @@ g5_traj <- as.ltraj(xy = coordinates(g5), date = g5$GPSTime, id = g5$TripID)
 
 # brzina, udaljenost ------------------------------------------------------
 
-# funkcija za izračun zračne udaljenosti između susjednih GPS točaka:
-distance_p2p <- function(sptable) {
-  output <- rep(0, nrow(sptable))
-  for (i in 2:nrow(sptable)) {
-    dx <- coordinates(sptable)[i,1] - coordinates(sptable)[i-1,1]
-    dy <- coordinates(sptable)[i,2] - coordinates(sptable)[i-1,2]
-    output[i] <- sqrt(dx^2 + dy^2)
-  }
-  return(output)
-}
+g <- rbind(g1, g2, g3, g4, g5)
 
-# funkcija za izračun vremenske razlike između susjednih GPS točaka:
-time_p2p <- function(sptable, units = "secs") {
-  td <- difftime(sptable$GPSTime[2:nrow(sptable)], sptable$GPSTime[1:nrow(sptable)-1], units = units)
-  td <- c(0, td)
-  return(td)
-}
+gt <- g %>% 
+  as.tibble() %>% 
+  group_by(GpsID, TripID) %>% 
+  summarise(pocetak = min(GPSTime), 
+            kraj = max(GPSTime), 
+            pocetak_mj = month(min(GPSTime), label = TRUE), 
+            kraj_mj = month(max(GPSTime), label = TRUE),
+            l_p2p_total = sum(Distance) / 1000, 
+            l_nest_mean = mean(Dist_from_nest),
+            l_nest_max = max(Dist_from_nest),
+            nest_max_x = LonProj[[which.max(Dist_from_nest)]],
+            nest_max_y = LatProj[[which.max(Dist_from_nest)]],
+            # trajanje = sum(Timediff) / 3600, # stara metoda za izračun
+            srednja_brzina = mean(Speed, na.rm = TRUE)) %>% 
+  mutate(trajanje = difftime(kraj, pocetak, units = 'hours')) %>% 
+  left_join(sextab, by = "GpsID")
 
-# funkcija koja to kombinira i dodaje tablici koju dobije kao input:
-movestats <- function(sptable) {
-  sptable$Distance <- distance_p2p(sptable)
-  sptable$Timediff <- time_p2p(sptable, units = "secs")
-  sptable$Speed <- sptable$Distance / sptable$Timediff
-  return(sptable)
-}
+write_csv(gt, path = 'output/laraud_trips.csv')
 
-g1 <- movestats(g1)
-g2 <- movestats(g2)
-g3 <- movestats(g3)
-g4 <- movestats(g4)
-g5 <- movestats(g5)
+
+# jedinka, spol -----------------------------------------------------------
+
+p <- ggplot(gt) + 
+  labs(x = 'Jedinka')
+  
+p + geom_boxplot(aes(GpsID, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
+p + geom_boxplot(aes(GpsID, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
+p + geom_boxplot(aes(GpsID, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
+p + geom_boxplot(aes(GpsID, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
+p + geom_boxplot(aes(GpsID, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
+
+p <- ggplot(gt) +
+  labs(x = 'Spol')
+
+p + geom_boxplot(aes(Sex, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
+p + geom_boxplot(aes(Sex, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
+p + geom_boxplot(aes(Sex, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
+p + geom_boxplot(aes(Sex, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
+p + geom_boxplot(aes(Sex, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
 
 # kernel density estimates ------------------------------------------------
 
-g2points <- SpatialPoints(sptab_g2)
-g2grid <- gridmaker(sptab_g2, resolution = 500, extend = 50)
-g2gridsp <- as(g2grid, "SpatialPixels")
+# g2points <- SpatialPoints(sptab_g2)
+# g2grid <- gridmaker(sptab_g2, resolution = 500, extend = 50)
+# g2gridsp <- as(g2grid, "SpatialPixels")
 # 
 # crs(g2grid) <- htrs96
 # crs(g2points) <- htrs96
