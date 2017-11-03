@@ -39,8 +39,9 @@ hr_proj <- spTransform(hr, htrs96)
 auth = readLines("data/auth.txt")
 mj09 <- get_ecotone_data(2017, 9, "croeagle", auth[1], auth[2])
 mj10 <- get_ecotone_data(2017, 10, "croeagle", auth[1], auth[2])
+mj11 <- get_ecotone_data(2017, 11, "croeagle", auth[1], auth[2])
 
-tab <- bind_rows(mj09, mj10)
+tab <- bind_rows(mj09, mj10, mj11)
 
 # dodavanje stringa za datum
 
