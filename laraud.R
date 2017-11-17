@@ -4,7 +4,7 @@
 # mzec 2017-10
 #
 
-verzija <- "0.7"
+verzija <- "0.8"
 
 # setup -------------------------------------------------------------------
 
@@ -120,7 +120,8 @@ mj06 <- get_ecotone_data(2017, 6, "crogull", auth[1], auth[2])
 mj07 <- get_ecotone_data(2017, 7, "crogull", auth[1], auth[2])
 mj08 <- get_ecotone_data(2017, 8, "crogull", auth[1], auth[2])
 
-tab <- bind_rows(mj05, mj06, mj07, mj08)
+tab <- bind_rows(mj05, mj06, mj07, mj08) %>% 
+  rename(Longitude = Longtitude)
 tab$GpsID <- as.factor(tab$GpsDescription)
 
 # definiranje spola
@@ -216,24 +217,59 @@ write_csv(gt, path = 'output/laraud_trips.csv')
 
 
 # jedinka, spol -----------------------------------------------------------
+# 
+# p <- ggplot(gt) + 
+#   labs(x = 'Jedinka')
+#   
+# p + geom_boxplot(aes(GpsID, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
+# p + geom_boxplot(aes(GpsID, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
+# p + geom_boxplot(aes(GpsID, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
+# p + geom_boxplot(aes(GpsID, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
+# p + geom_boxplot(aes(GpsID, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
+# 
+# p <- ggplot(gt) +
+#   labs(x = 'Spol')
+# 
+# p + geom_boxplot(aes(Sex, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
+# p + geom_boxplot(aes(Sex, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
+# p + geom_boxplot(aes(Sex, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
+# p + geom_boxplot(aes(Sex, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
+# p + geom_boxplot(aes(Sex, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
+# 
 
-p <- ggplot(gt) + 
-  labs(x = 'Jedinka')
-  
-p + geom_boxplot(aes(GpsID, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
-p + geom_boxplot(aes(GpsID, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
-p + geom_boxplot(aes(GpsID, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
-p + geom_boxplot(aes(GpsID, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
-p + geom_boxplot(aes(GpsID, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
 
-p <- ggplot(gt) +
-  labs(x = 'Spol')
+# vrijeme odlaska/dolaska po kategorijama ---------------------------------
 
-p + geom_boxplot(aes(Sex, l_p2p_total)) + labs(y = 'Ukupna duljina puta tijekom izlaska [m]')
-p + geom_boxplot(aes(Sex, srednja_brzina)) + labs(y = 'Srednja brzina tijekom izlaska [m/s]')
-p + geom_boxplot(aes(Sex, l_nest_mean)) + labs(y = 'Srednja zračna udaljenost od gn. tijekom izlaska [m]')
-p + geom_boxplot(aes(Sex, l_nest_max)) + labs(y = 'Maksimalna zračna udaljenost od gn. tijekom izlaska [m]')
-p + geom_boxplot(aes(Sex, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izlaska [h]')
+gt$p_kat <- NA
+gt$k_kat <- NA
+
+# timecat() kategorizira datetime varijablu u 4 kategorije
+gt$p_kat <- timecat(gt$pocetak, 
+                    cutpoints = c(5, 11, 17, 23), # u UTC vremenskoj zoni
+                    categories = c("01-07 h",
+                                   "07-13 h",
+                                   "13-19 h",
+                                   "19-01 h"))
+gt$k_kat <- timecat(gt$kraj, 
+                    cutpoints = c(5, 11, 17, 23),
+                    categories = c("01-07 h",
+                                   "07-13 h",
+                                   "13-19 h",
+                                   "19-01 h"))
+
+gggt <- gt %>% 
+  select(GpsID, TripID, pocetak, kraj, p_kat, k_kat, Sex) %>% 
+  gather(oznaka, vrijeme, p_kat:k_kat)
+
+p <- ggplot(data = gggt, aes(x = vrijeme, y = (..count..)/sum(..count..), fill = oznaka))
+p + geom_bar(stat = "count", position = "dodge") + facet_grid(~Sex)
+
+# p <- ggplot(data = gt, aes(x = k_kat, y = (..count..)/sum(..count..), fill = Sex))
+# p + geom_bar(stat = "count", position = "dodge")
+
+# trajanje izlaska, duljina zadržavanja na gnijezdu -----------------------
+
+
 
 # kernel density estimates ------------------------------------------------
 
@@ -277,3 +313,13 @@ p + geom_boxplot(aes(Sex, as.numeric(trajanje))) + labs(y = 'Ukupno trajanje izl
 # lines(getverticeshr(kda_g3, percent = 30))
 # 
 # write.csv(sptab, file = "data/sptab.csv")
+
+
+# kretanje ribarskih brodica ----------------------------------------------
+
+brod <- read.csv(file = "data/brodovi/brodovi.csv", sep = ";", header = TRUE) %>%
+  tbl_df() %>% 
+  mutate(time = dmy_hm(GPS_DTIME)) %>% 
+  rename(Latitude = WGS84_LAT, Longitude = WGS84_LONG) %>% 
+  mkspat(., crs = wgs84)
+  

@@ -20,9 +20,9 @@ gridmaker <- function(spatialobject, resolution = 500, extend = 0) {
   return(extend(temp, extend))
 }
 
-# običnu tablicu s 'Lonigtude' i 'Latitude' varijablama pretvara u prostornu
+# običnu tablicu s 'Longitude' i 'Latitude' varijablama pretvara u prostornu
 mkspat <- function(tab, crs = NA) {
-  coords <- cbind(tab$Longtitude, tab$Latitude)
+  coords <- cbind(tab$Longitude, tab$Latitude)
   sptab <- SpatialPointsDataFrame(data = tab, coords = coords, proj4string = wgs84)
   if(!is.na(crs)){
     sptab <- spTransform(sptab, crs)
@@ -117,6 +117,19 @@ movestats <- function(sptable) {
   }
   return(sptable)
 }
+
+# funkcija koja  kategorizira datetime varijablu u 4 kategorije
+# cutpoints je vektor 4 cijela broja koji označavaju prijelomne točke u GMT vremenskoj zoni
+timecat <- function(timevector, cutpoints, categories = c("prva", "druga", "treca", "cetvrta")) {
+  require(lubridate)
+  output <- rep(NA, length(timevector))
+  output[hour(timevector) >= cutpoints[4] | hour(timevector) < cutpoints[1]] <- categories[1]
+  output[hour(timevector) >= cutpoints[1] & hour(timevector) < cutpoints[2]] <- categories[2]
+  output[hour(timevector) >= cutpoints[2] & hour(timevector) < cutpoints[3]] <- categories[3]
+  output[hour(timevector) >= cutpoints[3] & hour(timevector) < cutpoints[4]] <- categories[4]
+  return(output)
+}
+
 
 # pomoćne funkcije za plotanje --------------------------------------------
 
